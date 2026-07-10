@@ -102,6 +102,15 @@ function Dashboard() {
     [data.documents]
   )
 
+  const correspondentNames = useMemo(
+    () => new Map(data.correspondents.map((item) => [item.id, item.name])),
+    [data.correspondents]
+  )
+  const documentTypeNames = useMemo(
+    () => new Map(data.documentTypes.map((item) => [item.id, item.name])),
+    [data.documentTypes]
+  )
+
   const filteredDocuments = useMemo(() => {
     const normalized = query.toLocaleLowerCase().trim()
     if (!normalized) return data.documents
@@ -364,6 +373,12 @@ function Dashboard() {
                 <TableBody>
                   {filteredDocuments.map((document) => {
                     const isClassifying = classifyingId === document.id
+                    const correspondent = document.correspondent
+                      ? correspondentNames.get(document.correspondent)
+                      : null
+                    const documentType = document.document_type
+                      ? documentTypeNames.get(document.document_type)
+                      : null
                     return (
                       <TableRow key={document.id}>
                         <TableCell>
@@ -381,13 +396,23 @@ function Dashboard() {
                         </TableCell>
                         <TableCell className="hidden lg:table-cell">
                           <div className="flex gap-2">
-                            <Badge variant="outline">
-                              {document.correspondent
-                                ? "Correspondent set"
-                                : "No correspondent"}
+                            <Badge
+                              variant="outline"
+                              className="max-w-40"
+                              title={correspondent || "No correspondent"}
+                            >
+                              <span className="truncate">
+                                {correspondent || "No correspondent"}
+                              </span>
                             </Badge>
-                            <Badge variant="outline">
-                              {document.document_type ? "Type set" : "No type"}
+                            <Badge
+                              variant="outline"
+                              className="max-w-40"
+                              title={documentType || "No document type"}
+                            >
+                              <span className="truncate">
+                                {documentType || "No document type"}
+                              </span>
                             </Badge>
                           </div>
                         </TableCell>
