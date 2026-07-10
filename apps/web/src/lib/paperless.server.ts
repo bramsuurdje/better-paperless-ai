@@ -37,6 +37,16 @@ async function paperlessFetch<T>(path: string, init?: RequestInit): Promise<T> {
     : ((await response.json()) as T)
 }
 
+async function paperlessRawFetch(path: string) {
+  const response = await fetch(`${paperlessUrl()}${path}`, {
+    headers: { Authorization: `Token ${getToken()}` },
+  })
+  if (!response.ok) {
+    throw new Error(`Paperless file download failed (${response.status})`)
+  }
+  return response
+}
+
 export async function loadDashboard(): Promise<DashboardData> {
   const model = process.env.OPENROUTER_MODEL || "google/gemini-2.5-flash"
   try {
@@ -195,6 +205,105 @@ export async function applyClassification(
       correspondent,
       document_type: documentType,
     }),
+  })
+  return { success: true }
+}
+
+export async function deleteDocument(documentId: number) {
+  await paperlessFetch(`/api/documents/${documentId}/`, {
+    method: "DELETE",
+  })
+  return { success: true }
+}
+
+export async function generateDocumentOcr(documentId: number) {
+  const apiKey = process.env.OPENROUTER_API_KEY
+  if (!apiKey)
+    throw new Error(
+      "Add OPENROUTER_API_KEY to .env.local before generating OCR"
+    )
+
+  const [document, fileResponse] = await Promise.all([
+    paperlessFetch<PaperlessDocument>(`/api/documents/${documentId}/`),
+    paperlessRawFetch(`/api/documents/${documentId}/download/`),
+  ])
+  const mimeType = fileResponse.headers.get("content-type")?.split(";")[0]
+  if (
+    !mimeType ||
+    (mimeType !== "application/pdf" && !mimeType.startsWith("image/"))
+  ) {
+    throw new Error(
+      `AI OCR supports PDF and image documents, not ${mimeType || "this file type"}`
+    )
+  }
+
+  const bytes = await fileResponse.arrayBuffer()
+  if (bytes.byteLength > 25 * 1024 * 1024) {
+    throw new Error("This document is larger than the 25 MB AI OCR limit")
+  }
+  const dataUrl = `data:${mimeType};base64,${Buffer.from(bytes).toString("base64")}`
+  const filePart =
+    mimeType === "application/pdf"
+      ? {
+          type: "file",
+          file: {
+            filename: document.original_file_name || `${document.title}.pdf`,
+            file_data: dataUrl,
+          },
+        }
+      : { type: "image_url", image_url: { url: dataUrl } }
+
+  const response = await fetch(
+    "https://openrouter.ai/api/v1/chat/completions",
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+        "HTTP-Referer": "http://localhost:3000",
+        "X-Title": "Better Paperless AI",
+      },
+      body: JSON.stringify({
+        model: process.env.OPENROUTER_MODEL || "google/gemini-2.5-flash",
+        temperature: 0,
+        messages: [
+          {
+            role: "user",
+            content: [
+              {
+                type: "text",
+                text: "Transcribe all visible text in this document exactly. Preserve reading order, paragraph breaks, table rows, dates, amounts, identifiers, and punctuation. Do not summarize, explain, add Markdown fences, or omit repeated text. Return only the transcription.",
+              },
+              filePart,
+            ],
+          },
+        ],
+      }),
+    }
+  )
+  if (!response.ok) {
+    const detail = await response.text()
+    throw new Error(
+      `OpenRouter OCR failed (${response.status}): ${detail.slice(0, 180)}`
+    )
+  }
+  const result = (await response.json()) as {
+    choices?: { message?: { content?: string } }[]
+  }
+  const content = result.choices?.[0]?.message?.content?.trim()
+  if (!content) throw new Error("The model returned no OCR text")
+  const generatedText = content
+    .replace(/^```(?:text|markdown)?\s*/i, "")
+    .replace(/\s*```$/, "")
+    .trim()
+
+  return { currentText: document.content, generatedText }
+}
+
+export async function replaceDocumentOcr(documentId: number, content: string) {
+  await paperlessFetch(`/api/documents/${documentId}/`, {
+    method: "PATCH",
+    body: JSON.stringify({ content }),
   })
   return { success: true }
 }

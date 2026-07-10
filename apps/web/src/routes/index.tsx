@@ -1,11 +1,15 @@
 import { useMemo, useState } from "react"
 import { createFileRoute, useRouter } from "@tanstack/react-router"
+import { diffLines } from "diff"
 import { HugeiconsIcon } from "@hugeicons/react"
 import {
   AiMagicIcon,
   ArrowRight01Icon,
   CheckmarkCircle02Icon,
+  Delete02Icon,
   File02Icon,
+  FileScanIcon,
+  More02Icon,
   RefreshIcon,
   Search01Icon,
 } from "@hugeicons/core-free-icons"
@@ -29,6 +33,7 @@ import {
 } from "@workspace/ui/components/alert-dialog"
 import { Badge } from "@workspace/ui/components/badge"
 import { Button } from "@workspace/ui/components/button"
+import { Checkbox } from "@workspace/ui/components/checkbox"
 import {
   Card,
   CardContent,
@@ -46,15 +51,38 @@ import {
   DialogTitle,
 } from "@workspace/ui/components/dialog"
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@workspace/ui/components/dropdown-menu"
+import {
   Empty,
   EmptyDescription,
   EmptyHeader,
   EmptyMedia,
   EmptyTitle,
 } from "@workspace/ui/components/empty"
-import { Field, FieldGroup, FieldLabel } from "@workspace/ui/components/field"
+import {
+  Field,
+  FieldContent,
+  FieldGroup,
+  FieldLabel,
+  FieldTitle,
+} from "@workspace/ui/components/field"
 import { Input } from "@workspace/ui/components/input"
 import { Progress } from "@workspace/ui/components/progress"
+import { ScrollArea } from "@workspace/ui/components/scroll-area"
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectTrigger,
+  SelectValue,
+} from "@workspace/ui/components/select"
 import { Spinner } from "@workspace/ui/components/spinner"
 import {
   Table,
@@ -65,13 +93,27 @@ import {
   TableRow,
 } from "@workspace/ui/components/table"
 import { Textarea } from "@workspace/ui/components/textarea"
+import { cn } from "@workspace/ui/lib/utils"
 
 import {
   applyClassificationFn,
   classifyDocumentFn,
+  deleteDocumentFn,
+  generateDocumentOcrFn,
   getDashboard,
+  replaceDocumentOcrFn,
 } from "@/lib/paperless.functions"
-import type { Classification, PaperlessDocument } from "@/lib/paperless.types"
+import type {
+  Classification,
+  OcrComparison,
+  PaperlessDocument,
+} from "@/lib/paperless.types"
+
+const classificationOptions = [
+  { label: "Needs classification", value: "unclassified" },
+  { label: "Already classified", value: "classified" },
+  { label: "Any classification status", value: "all" },
+]
 
 export const Route = createFileRoute("/")({
   loader: () => getDashboard(),
@@ -82,6 +124,10 @@ function Dashboard() {
   const data = Route.useLoaderData()
   const router = useRouter()
   const [query, setQuery] = useState("")
+  const [classificationFilter, setClassificationFilter] =
+    useState("unclassified")
+  const [correspondentFilter, setCorrespondentFilter] = useState("all")
+  const [documentTypeFilter, setDocumentTypeFilter] = useState("all")
   const [selected, setSelected] = useState<PaperlessDocument | null>(null)
   const [suggestion, setSuggestion] = useState<Classification | null>(null)
   const [classifyingId, setClassifyingId] = useState<number | null>(null)
@@ -91,6 +137,15 @@ function Dashboard() {
     total: number
     failed: number
   } | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<PaperlessDocument | null>(
+    null
+  )
+  const [deletingId, setDeletingId] = useState<number | null>(null)
+  const [skipDeleteConfirmation, setSkipDeleteConfirmation] = useState(false)
+  const [ocrTarget, setOcrTarget] = useState<PaperlessDocument | null>(null)
+  const [ocrComparison, setOcrComparison] = useState<OcrComparison | null>(null)
+  const [generatingOcr, setGeneratingOcr] = useState(false)
+  const [replacingOcr, setReplacingOcr] = useState(false)
 
   const bulkCandidates = useMemo(
     () =>
@@ -110,16 +165,78 @@ function Dashboard() {
     () => new Map(data.documentTypes.map((item) => [item.id, item.name])),
     [data.documentTypes]
   )
+  const correspondentOptions = useMemo(
+    () => [
+      { label: "Any correspondent", value: "all" },
+      { label: "Without a correspondent", value: "none" },
+      ...data.correspondents.map((item) => ({
+        label: item.name,
+        value: String(item.id),
+      })),
+    ],
+    [data.correspondents]
+  )
+  const documentTypeOptions = useMemo(
+    () => [
+      { label: "Any document type", value: "all" },
+      { label: "Without a document type", value: "none" },
+      ...data.documentTypes.map((item) => ({
+        label: item.name,
+        value: String(item.id),
+      })),
+    ],
+    [data.documentTypes]
+  )
 
   const filteredDocuments = useMemo(() => {
     const normalized = query.toLocaleLowerCase().trim()
-    if (!normalized) return data.documents
-    return data.documents.filter((document) =>
-      [document.title, document.content, document.original_file_name]
+    return data.documents.filter((document) => {
+      const isClassified = Boolean(
+        document.correspondent && document.document_type
+      )
+      if (classificationFilter === "classified" && !isClassified) return false
+      if (classificationFilter === "unclassified" && isClassified) return false
+      if (
+        correspondentFilter !== "all" &&
+        String(document.correspondent ?? "none") !== correspondentFilter
+      )
+        return false
+      if (
+        documentTypeFilter !== "all" &&
+        String(document.document_type ?? "none") !== documentTypeFilter
+      )
+        return false
+      if (!normalized) return true
+      return [
+        document.title,
+        document.content,
+        document.original_file_name,
+        document.correspondent
+          ? correspondentNames.get(document.correspondent)
+          : null,
+        document.document_type
+          ? documentTypeNames.get(document.document_type)
+          : null,
+      ]
         .filter(Boolean)
         .some((value) => value!.toLocaleLowerCase().includes(normalized))
-    )
-  }, [data.documents, query])
+    })
+  }, [
+    classificationFilter,
+    correspondentFilter,
+    correspondentNames,
+    data.documents,
+    documentTypeFilter,
+    documentTypeNames,
+    query,
+  ])
+  const ocrDiff = useMemo(
+    () =>
+      ocrComparison
+        ? diffLines(ocrComparison.currentText, ocrComparison.generatedText)
+        : [],
+    [ocrComparison]
+  )
 
   async function classify(document: PaperlessDocument) {
     setSelected(document)
@@ -192,6 +309,81 @@ function Dashboard() {
     }
     setBulkProgress(null)
     await router.invalidate()
+  }
+
+  function requestDelete(document: PaperlessDocument) {
+    if (
+      localStorage.getItem("paperless-ai-skip-delete-confirmation") === "true"
+    ) {
+      void removeDocument(document)
+      return
+    }
+    setSkipDeleteConfirmation(false)
+    setDeleteTarget(document)
+  }
+
+  async function removeDocument(document: PaperlessDocument) {
+    setDeletingId(document.id)
+    try {
+      await deleteDocumentFn({ data: { documentId: document.id } })
+      toast.success("Document deleted from Paperless")
+      setDeleteTarget(null)
+      await router.invalidate()
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Could not delete document"
+      )
+    } finally {
+      setDeletingId(null)
+    }
+  }
+
+  function confirmDelete() {
+    if (!deleteTarget) return
+    if (skipDeleteConfirmation) {
+      localStorage.setItem("paperless-ai-skip-delete-confirmation", "true")
+    }
+    void removeDocument(deleteTarget)
+  }
+
+  async function generateOcr(document: PaperlessDocument) {
+    setOcrTarget(document)
+    setOcrComparison(null)
+    setGeneratingOcr(true)
+    try {
+      const result = await generateDocumentOcrFn({
+        data: { documentId: document.id },
+      })
+      setOcrComparison(result)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "AI OCR failed")
+      setOcrTarget(null)
+    } finally {
+      setGeneratingOcr(false)
+    }
+  }
+
+  async function replaceOcr() {
+    if (!ocrTarget || !ocrComparison) return
+    setReplacingOcr(true)
+    try {
+      await replaceDocumentOcrFn({
+        data: {
+          documentId: ocrTarget.id,
+          content: ocrComparison.generatedText,
+        },
+      })
+      toast.success("Paperless OCR text replaced")
+      setOcrTarget(null)
+      setOcrComparison(null)
+      await router.invalidate()
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Could not replace OCR text"
+      )
+    } finally {
+      setReplacingOcr(false)
+    }
   }
 
   return (
@@ -321,7 +513,7 @@ function Dashboard() {
               </AlertDialog>
             </div>
           </CardHeader>
-          <CardContent className="flex flex-col gap-4">
+          <CardContent className="flex flex-col gap-6">
             {bulkProgress ? (
               <div className="flex flex-col gap-2 rounded-lg bg-muted px-3 py-3">
                 <div className="flex items-center justify-between text-sm">
@@ -342,19 +534,103 @@ function Dashboard() {
                 />
               </div>
             ) : null}
-            <div className="relative max-w-md">
-              <HugeiconsIcon
-                icon={Search01Icon}
-                strokeWidth={2}
-                className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
-              />
-              <Input
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder="Search title or OCR text"
-                className="pl-9"
-              />
-            </div>
+            <FieldGroup className="gap-4 lg:grid lg:grid-cols-[minmax(16rem,1fr)_repeat(3,minmax(10rem,auto))] lg:items-end">
+              <Field>
+                <FieldLabel htmlFor="document-search">Search</FieldLabel>
+                <div className="relative min-w-0">
+                  <HugeiconsIcon
+                    icon={Search01Icon}
+                    strokeWidth={2}
+                    className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
+                  />
+                  <Input
+                    id="document-search"
+                    value={query}
+                    onChange={(event) => setQuery(event.target.value)}
+                    placeholder="Title, OCR text, or metadata"
+                    className="pl-9"
+                  />
+                </div>
+              </Field>
+              <Field>
+                <FieldLabel>Classification</FieldLabel>
+                <Select
+                  items={classificationOptions}
+                  value={classificationFilter}
+                  onValueChange={(value) =>
+                    value && setClassificationFilter(value)
+                  }
+                >
+                  <SelectTrigger className="w-full min-w-44">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectGroup>
+                      <SelectLabel>Classification status</SelectLabel>
+                      {classificationOptions.map((item) => (
+                        <SelectItem key={item.value} value={item.value}>
+                          {item.label}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+              </Field>
+              <Field>
+                <FieldLabel>Correspondent</FieldLabel>
+                <Select
+                  items={correspondentOptions}
+                  value={correspondentFilter}
+                  onValueChange={(value) =>
+                    value && setCorrespondentFilter(value)
+                  }
+                >
+                  <SelectTrigger className="w-full max-w-64 min-w-48">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent
+                    className="min-w-64"
+                    alignItemWithTrigger={false}
+                  >
+                    <SelectGroup>
+                      <SelectLabel>Correspondent</SelectLabel>
+                      {correspondentOptions.map((item) => (
+                        <SelectItem key={item.value} value={item.value}>
+                          {item.label}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+              </Field>
+              <Field>
+                <FieldLabel>Document type</FieldLabel>
+                <Select
+                  items={documentTypeOptions}
+                  value={documentTypeFilter}
+                  onValueChange={(value) =>
+                    value && setDocumentTypeFilter(value)
+                  }
+                >
+                  <SelectTrigger className="w-full max-w-64 min-w-48">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent
+                    className="min-w-64"
+                    alignItemWithTrigger={false}
+                  >
+                    <SelectGroup>
+                      <SelectLabel>Document type</SelectLabel>
+                      {documentTypeOptions.map((item) => (
+                        <SelectItem key={item.value} value={item.value}>
+                          {item.label}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+              </Field>
+            </FieldGroup>
 
             {filteredDocuments.length ? (
               <Table>
@@ -379,6 +655,9 @@ function Dashboard() {
                     const documentType = document.document_type
                       ? documentTypeNames.get(document.document_type)
                       : null
+                    const isClassified = Boolean(
+                      document.correspondent && document.document_type
+                    )
                     return (
                       <TableRow key={document.id}>
                         <TableCell>
@@ -417,25 +696,101 @@ function Dashboard() {
                           </div>
                         </TableCell>
                         <TableCell className="text-right">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            disabled={
-                              Boolean(classifyingId) || !document.content
-                            }
-                            onClick={() => classify(document)}
-                          >
-                            {isClassifying ? (
-                              <Spinner data-icon="inline-start" />
-                            ) : (
-                              <HugeiconsIcon
-                                icon={AiMagicIcon}
-                                strokeWidth={2}
-                                data-icon="inline-start"
-                              />
-                            )}
-                            {isClassifying ? "Reading" : "Classify"}
-                          </Button>
+                          {isClassified ? (
+                            <DropdownMenu>
+                              <DropdownMenuTrigger
+                                render={
+                                  <Button
+                                    size="icon-sm"
+                                    variant="ghost"
+                                    disabled={
+                                      Boolean(classifyingId) ||
+                                      deletingId === document.id
+                                    }
+                                  />
+                                }
+                              >
+                                {deletingId === document.id ? (
+                                  <Spinner />
+                                ) : (
+                                  <HugeiconsIcon
+                                    icon={More02Icon}
+                                    strokeWidth={2}
+                                  />
+                                )}
+                                <span className="sr-only">
+                                  Actions for {document.title}
+                                </span>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuGroup>
+                                  <DropdownMenuItem
+                                    onClick={() => classify(document)}
+                                  >
+                                    <HugeiconsIcon
+                                      icon={AiMagicIcon}
+                                      strokeWidth={2}
+                                    />
+                                    Reclassify
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem
+                                    onClick={() => generateOcr(document)}
+                                  >
+                                    <HugeiconsIcon
+                                      icon={FileScanIcon}
+                                      strokeWidth={2}
+                                    />
+                                    Generate AI OCR
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem
+                                    variant="destructive"
+                                    onClick={() => requestDelete(document)}
+                                  >
+                                    <HugeiconsIcon
+                                      icon={Delete02Icon}
+                                      strokeWidth={2}
+                                    />
+                                    Delete
+                                  </DropdownMenuItem>
+                                </DropdownMenuGroup>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          ) : (
+                            <div className="flex justify-end gap-2">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                disabled={
+                                  Boolean(classifyingId) || !document.content
+                                }
+                                onClick={() => classify(document)}
+                              >
+                                {isClassifying ? (
+                                  <Spinner data-icon="inline-start" />
+                                ) : (
+                                  <HugeiconsIcon
+                                    icon={AiMagicIcon}
+                                    strokeWidth={2}
+                                    data-icon="inline-start"
+                                  />
+                                )}
+                                {isClassifying ? "Reading" : "Classify"}
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                disabled={generatingOcr}
+                                onClick={() => generateOcr(document)}
+                              >
+                                <HugeiconsIcon
+                                  icon={FileScanIcon}
+                                  strokeWidth={2}
+                                  data-icon="inline-start"
+                                />
+                                AI OCR
+                              </Button>
+                            </div>
+                          )}
                         </TableCell>
                       </TableRow>
                     )
@@ -578,6 +933,126 @@ function Dashboard() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <Dialog
+        open={Boolean(ocrTarget)}
+        onOpenChange={(open) => !open && !replacingOcr && setOcrTarget(null)}
+      >
+        <DialogContent className="max-h-[90svh] sm:max-w-5xl">
+          <DialogHeader>
+            <DialogTitle>Review AI-generated OCR</DialogTitle>
+            <DialogDescription>
+              Compare the current Paperless text with the transcription from{" "}
+              {data.model}. Replacing it changes only the OCR text, not the
+              stored document file.
+            </DialogDescription>
+          </DialogHeader>
+          {generatingOcr ? (
+            <div className="flex min-h-80 flex-col items-center justify-center gap-3 text-center">
+              <Spinner className="size-6" />
+              <div>
+                <p className="font-medium">Reading the original document</p>
+                <p className="text-sm text-muted-foreground">
+                  The private file is being sent to the configured OpenRouter
+                  model.
+                </p>
+              </div>
+            </div>
+          ) : ocrComparison ? (
+            <div className="flex min-h-0 flex-col gap-3">
+              <div className="flex flex-wrap gap-4 text-xs text-muted-foreground">
+                <span>
+                  <span className="font-medium text-foreground">Unchanged</span>{" "}
+                  text
+                </span>
+                <span>
+                  <span className="font-medium text-destructive">Removed</span>{" "}
+                  from Paperless OCR
+                </span>
+                <span>
+                  <span className="font-medium text-primary">Added</span> by AI
+                  OCR
+                </span>
+              </div>
+              <ScrollArea className="h-[55svh] border bg-muted/30">
+                <div className="p-4 font-mono text-xs leading-relaxed">
+                  {ocrDiff.map((part, index) => (
+                    <pre
+                      key={`${index}-${part.value.slice(0, 20)}`}
+                      className={cn(
+                        "px-2 py-1 break-words whitespace-pre-wrap",
+                        part.added && "bg-primary/10 text-foreground",
+                        part.removed && "bg-destructive/10 text-destructive"
+                      )}
+                    >
+                      {part.value}
+                    </pre>
+                  ))}
+                </div>
+              </ScrollArea>
+            </div>
+          ) : null}
+          <DialogFooter>
+            <Button
+              variant="outline"
+              disabled={replacingOcr}
+              onClick={() => setOcrTarget(null)}
+            >
+              Keep Paperless OCR
+            </Button>
+            <Button
+              disabled={!ocrComparison || replacingOcr}
+              onClick={replaceOcr}
+            >
+              {replacingOcr ? (
+                <Spinner data-icon="inline-start" />
+              ) : (
+                <HugeiconsIcon
+                  icon={FileScanIcon}
+                  strokeWidth={2}
+                  data-icon="inline-start"
+                />
+              )}
+              {replacingOcr ? "Replacing" : "Replace OCR text"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog
+        open={Boolean(deleteTarget)}
+        onOpenChange={(open) => !open && setDeleteTarget(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this document?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {deleteTarget?.title} will be permanently deleted from Paperless.
+              This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <FieldGroup>
+            <Field orientation="horizontal">
+              <Checkbox
+                id="skip-delete-confirmation"
+                checked={skipDeleteConfirmation}
+                onCheckedChange={setSkipDeleteConfirmation}
+              />
+              <FieldContent>
+                <FieldLabel htmlFor="skip-delete-confirmation">
+                  <FieldTitle>Don&apos;t ask me again</FieldTitle>
+                </FieldLabel>
+              </FieldContent>
+            </Field>
+          </FieldGroup>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction variant="destructive" onClick={confirmDelete}>
+              Delete document
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </main>
   )
 }

@@ -31,3 +31,8 @@ export type Classification = {
   confidence: number
   reasoning: string
 }
+
+export type OcrComparison = {
+  currentText: string
+  generatedText: string
+}

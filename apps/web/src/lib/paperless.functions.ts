@@ -4,7 +4,10 @@ import { z } from "zod"
 import {
   applyClassification,
   classifyDocument,
+  deleteDocument,
+  generateDocumentOcr,
   loadDashboard,
+  replaceDocumentOcr,
 } from "./paperless.server"
 
 const classificationSchema = z.object({
@@ -31,3 +34,20 @@ export const applyClassificationFn = createServerFn({ method: "POST" })
     })
   )
   .handler(({ data }) => applyClassification(data.documentId, data.suggestion))
+
+export const deleteDocumentFn = createServerFn({ method: "POST" })
+  .validator(z.object({ documentId: z.number().int().positive() }))
+  .handler(({ data }) => deleteDocument(data.documentId))
+
+export const generateDocumentOcrFn = createServerFn({ method: "POST" })
+  .validator(z.object({ documentId: z.number().int().positive() }))
+  .handler(({ data }) => generateDocumentOcr(data.documentId))
+
+export const replaceDocumentOcrFn = createServerFn({ method: "POST" })
+  .validator(
+    z.object({
+      documentId: z.number().int().positive(),
+      content: z.string().min(1).max(2_000_000),
+    })
+  )
+  .handler(({ data }) => replaceDocumentOcr(data.documentId, data.content))
