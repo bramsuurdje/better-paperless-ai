@@ -119,6 +119,8 @@ Add a Webhook action and enter these values:
 | Send webhook payload as JSON | On |
 | Include document | Off |
 
+> `Include document` must be off. When it is on, Paperless sends a multipart request with the file attached. Better Paperless AI expects JSON and responds with `400 Bad Request`. The app downloads the document through the Paperless API, so attaching it to the webhook only sends the same file twice.
+
 Under Webhook params, add one row:
 
 | Name | Value |
@@ -133,7 +135,15 @@ Under Webhook headers, add one row:
 | --- | --- |
 | `X-Webhook-Secret` | The webhook secret from Better Paperless AI |
 
-The header name must be exactly `X-Webhook-Secret`. Do not add the word `header` to it. Leave `Include document` off because Better Paperless AI downloads the source file from the Paperless API.
+The header name must be exactly `X-Webhook-Secret`. Do not add the word `header` to it.
+
+Before saving, check the Webhook action one more time:
+
+- `Use parameters for webhook body` is on
+- `Send webhook payload as JSON` is on
+- `Include document` is off
+- The parameter is named `document_url` and contains `{{doc_url}}`
+- The header is named `X-Webhook-Secret`
 
 Save the workflow, then upload a new document. A `Document Added` workflow only runs for documents added after the workflow was enabled. It does not process documents that were already in Paperless.
 
@@ -174,6 +184,16 @@ X-Webhook-Secret: your-webhook-secret
 ```
 
 The endpoint returns `202 Accepted` when it queues the document. A `401 Unauthorized` response means the webhook secret does not match. A `409 Conflict` response means webhook automation is disabled in Better Paperless AI. Better Paperless AI extracts the document ID from `{{doc_url}}`, which works with Paperless versions that do not provide a `doc_id` placeholder.
+
+If the webhook fails, the response and Paperless logs usually point to one of these settings:
+
+| Error | What to check |
+| --- | --- |
+| `doc_id is undefined` | Replace `{{doc_id}}` with `{{doc_url}}` and name the parameter `document_url`. |
+| `400 Bad Request` | Make sure JSON is on and `Include document` is off. |
+| `401 Unauthorized` | Copy the same webhook secret into Better Paperless AI and the `X-Webhook-Secret` header. |
+| `409 Conflict` | Enable webhook automation in Better Paperless AI. |
+| Connection refused or timeout | Use an address that the Paperless container can reach and check the allowed webhook ports. |
 
 The app stores automation jobs on disk and processes them one at a time. Repeated webhook calls for the same completed document do not run the job again. A failed job can be queued again by sending the webhook another time.
 
