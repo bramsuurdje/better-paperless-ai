@@ -4,6 +4,7 @@ import {
   enqueueDocumentAutomation,
   webhookSecretMatches,
 } from "@/lib/automation.server"
+import { parsePaperlessDocumentId } from "@/lib/paperless-webhook"
 import { getRuntimeSettings } from "@/lib/settings.server"
 
 export const Route = createFileRoute("/api/webhooks/paperless")({
@@ -31,11 +32,13 @@ export const Route = createFileRoute("/api/webhooks/paperless")({
           )
         }
         const body = payload as Record<string, unknown>
-        const candidate = body.document_id ?? body.doc_id ?? body.id
-        const documentId = Number(candidate)
-        if (!Number.isInteger(documentId) || documentId <= 0) {
+        const documentId = parsePaperlessDocumentId(body)
+        if (!documentId) {
           return Response.json(
-            { error: "document_id must be a positive integer" },
+            {
+              error:
+                "Provide a positive document_id or a Paperless document_url",
+            },
             { status: 400 }
           )
         }

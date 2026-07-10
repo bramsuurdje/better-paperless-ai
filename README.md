@@ -57,7 +57,19 @@ bun run --cwd apps/web start
 
 ## Docker Compose
 
-The included Compose file pulls the latest image from GitHub Container Registry, reads `.env.local`, and exposes the app on port 3000:
+The included Compose file runs Paperless-ngx, PostgreSQL, Redis, and Better Paperless AI on one Docker network. Paperless is available on port 8444 and Better Paperless AI is available on port 3000.
+
+Put the Better Paperless AI values in a `.env` file next to `compose.yaml`:
+
+```dotenv
+PAPERLESS_API_KEY=
+OPENROUTER_API_KEY=
+OPENROUTER_MODEL=google/gemini-2.5-flash-lite
+AUTOMATION_ENABLED=false
+WEBHOOK_SECRET=
+```
+
+Paperless can still read its own settings from `docker-compose.env`. The app connects to Paperless through the internal `http://webserver:8000` address, so you do not need to expose the Paperless API URL through `.env`.
 
 ```bash
 docker compose pull
@@ -111,7 +123,9 @@ Under Webhook params, add one row:
 
 | Name | Value |
 | --- | --- |
-| `document_id` | `{{doc_id}}` |
+| `document_url` | `{{doc_url}}` |
+
+The `doc_url` placeholder requires `PAPERLESS_URL` to be configured on the Paperless container. Set it to the browser-facing URL of your Paperless instance, for example `http://10.0.0.5:8444`.
 
 Under Webhook headers, add one row:
 
@@ -156,10 +170,10 @@ POST /api/webhooks/paperless
 Content-Type: application/json
 X-Webhook-Secret: your-webhook-secret
 
-{"document_id":"123"}
+{"document_url":"http://paperless.example.com/documents/123/details"}
 ```
 
-The endpoint returns `202 Accepted` when it queues the document. A `401 Unauthorized` response means the webhook secret does not match. A `409 Conflict` response means webhook automation is disabled in Better Paperless AI. If Paperless leaves `{{doc_id}}` unchanged, update Paperless to a version that supports the `doc_id` workflow placeholder.
+The endpoint returns `202 Accepted` when it queues the document. A `401 Unauthorized` response means the webhook secret does not match. A `409 Conflict` response means webhook automation is disabled in Better Paperless AI. Better Paperless AI extracts the document ID from `{{doc_url}}`, which works with Paperless versions that do not provide a `doc_id` placeholder.
 
 The app stores automation jobs on disk and processes them one at a time. Repeated webhook calls for the same completed document do not run the job again. A failed job can be queued again by sending the webhook another time.
 

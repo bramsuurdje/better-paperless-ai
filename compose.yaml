@@ -1,16 +1,64 @@
 services:
-  web:
+  broker:
+    image: docker.io/library/redis:8
+    restart: unless-stopped
+    volumes:
+      - redisdata:/data
+
+  db:
+    image: docker.io/library/postgres:18
+    restart: unless-stopped
+    volumes:
+      - pgdata:/var/lib/postgresql
+    environment:
+      POSTGRES_DB: paperless
+      POSTGRES_USER: paperless
+      POSTGRES_PASSWORD: paperless
+
+  webserver:
+    image: ghcr.io/paperless-ngx/paperless-ngx:latest
+    restart: unless-stopped
+    depends_on:
+      - db
+      - broker
+    ports:
+      - "8444:8000"
+    volumes:
+      - data:/usr/src/paperless/data
+      - media:/usr/src/paperless/media
+      - ./export:/usr/src/paperless/export
+      - ./consume:/usr/src/paperless/consume
+    env_file:
+      - path: docker-compose.env
+        required: false
+    environment:
+      PAPERLESS_REDIS: redis://broker:6379
+      PAPERLESS_DBHOST: db
+      PAPERLESS_WEBHOOKS_ALLOWED_PORTS: "3000"
+
+  better-paperless-ai:
     image: ghcr.io/bramsuurdje/better-paperless-ai:latest
     pull_policy: always
     init: true
     restart: unless-stopped
-    env_file:
-      - path: .env.local
-        required: false
+    depends_on:
+      - webserver
     ports:
       - "3000:3000"
+    environment:
+      PAPERLESS_URL: http://webserver:8000
+      PAPERLESS_API_KEY: ${PAPERLESS_API_KEY:-}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      OPENROUTER_MODEL: ${OPENROUTER_MODEL:-google/gemini-2.5-flash-lite}
+      AUTOMATION_ENABLED: ${AUTOMATION_ENABLED:-false}
+      WEBHOOK_SECRET: ${WEBHOOK_SECRET:-}
+      APP_DATA_DIR: /data
     volumes:
       - app-data:/data
 
 volumes:
+  data:
+  media:
+  pgdata:
+  redisdata:
   app-data:
