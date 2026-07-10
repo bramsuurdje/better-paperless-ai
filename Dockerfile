@@ -27,7 +27,8 @@ WORKDIR /app
 
 ENV NODE_ENV=production \
     HOST=0.0.0.0 \
-    PORT=3000
+    PORT=3000 \
+    APP_DATA_DIR=/data
 
 COPY --from=production-dependencies --chown=bun:bun /app/node_modules ./node_modules
 COPY --from=production-dependencies --chown=bun:bun /app/apps/web/node_modules ./apps/web/node_modules
@@ -35,7 +36,10 @@ COPY --from=production-dependencies --chown=bun:bun /app/package.json ./package.
 COPY --from=production-dependencies --chown=bun:bun /app/apps/web/package.json ./apps/web/package.json
 COPY --from=build --chown=bun:bun /app/apps/web/dist ./apps/web/dist
 
+RUN mkdir -p /data && chown bun:bun /data
+
 USER bun
+VOLUME ["/data"]
 EXPOSE 3000
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \

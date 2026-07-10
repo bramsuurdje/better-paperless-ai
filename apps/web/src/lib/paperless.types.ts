@@ -1,3 +1,5 @@
+import type { PublicSettings } from "./settings.types"
+
 export type PaperlessDocument = {
   id: number
   title: string
@@ -15,6 +17,7 @@ export type NamedResource = {
 }
 
 export type DashboardData = {
+  settings: PublicSettings
   paperlessUrl: string
   documents: PaperlessDocument[]
   correspondents: NamedResource[]

@@ -229,7 +229,7 @@ function Dashboard() {
 
   return (
     <main className="min-h-svh bg-muted/40">
-      <DashboardHeader openRouterConfigured={data.openRouterConfigured} />
+      <DashboardHeader settings={data.settings} />
 
       <div className="mx-auto flex max-w-7xl flex-col gap-6 px-5 py-8 lg:px-8">
         <DashboardStatus data={data} />

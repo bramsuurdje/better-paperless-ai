@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
+import { resumeAutomationQueue } from "./automation.server"
 
 import {
   applyClassification,
@@ -18,9 +19,10 @@ const classificationSchema = z.object({
   reasoning: z.string().max(1000),
 })
 
-export const getDashboard = createServerFn({ method: "GET" }).handler(
-  loadDashboard
-)
+export const getDashboard = createServerFn({ method: "GET" }).handler(() => {
+  resumeAutomationQueue()
+  return loadDashboard()
+})
 
 export const classifyDocumentFn = createServerFn({ method: "POST" })
   .validator(z.object({ documentId: z.number().int().positive() }))

@@ -4,14 +4,14 @@ import type {
   NamedResource,
   PaperlessDocument,
 } from "./paperless.types"
+import { getPublicSettings, getRuntimeSettings } from "./settings.server"
 
 type Paginated<T> = { count: number; results: T[] }
 
-const paperlessUrl = () =>
-  (process.env.PAPERLESS_URL || "http://10.0.0.5:8444").replace(/\/$/, "")
+const paperlessUrl = () => getRuntimeSettings().paperlessUrl
 
 function getToken() {
-  const token = process.env.PAPERLESS_API_KEY
+  const token = getRuntimeSettings().paperlessApiKey
   if (!token) throw new Error("PAPERLESS_API_KEY is not configured")
   return token
 }
@@ -48,7 +48,8 @@ async function paperlessRawFetch(path: string) {
 }
 
 export async function loadDashboard(): Promise<DashboardData> {
-  const model = process.env.OPENROUTER_MODEL || "google/gemini-2.5-flash"
+  const settings = getPublicSettings()
+  const model = settings.openRouterModel
   try {
     const [documents, correspondents, documentTypes] = await Promise.all([
       paperlessFetch<Paginated<PaperlessDocument>>(
@@ -62,6 +63,7 @@ export async function loadDashboard(): Promise<DashboardData> {
       ),
     ])
     return {
+      settings,
       paperlessUrl: paperlessUrl(),
       documents: documents.results.map((document) => ({
         ...document,
@@ -71,11 +73,12 @@ export async function loadDashboard(): Promise<DashboardData> {
       documentTypes: documentTypes.results,
       totalDocuments: documents.count,
       connectionError: null,
-      openRouterConfigured: Boolean(process.env.OPENROUTER_API_KEY),
+      openRouterConfigured: settings.openRouterApiKeyConfigured,
       model,
     }
   } catch (error) {
     return {
+      settings,
       paperlessUrl: paperlessUrl(),
       documents: [],
       correspondents: [],
@@ -85,7 +88,7 @@ export async function loadDashboard(): Promise<DashboardData> {
         error instanceof Error
           ? error.message
           : "Could not connect to Paperless",
-      openRouterConfigured: Boolean(process.env.OPENROUTER_API_KEY),
+      openRouterConfigured: settings.openRouterApiKeyConfigured,
       model,
     }
   }
@@ -94,7 +97,8 @@ export async function loadDashboard(): Promise<DashboardData> {
 export async function classifyDocument(
   documentId: number
 ): Promise<Classification> {
-  const apiKey = process.env.OPENROUTER_API_KEY
+  const runtimeSettings = getRuntimeSettings()
+  const apiKey = runtimeSettings.openRouterApiKey
   if (!apiKey)
     throw new Error("Add OPENROUTER_API_KEY to .env.local before classifying")
 
@@ -121,7 +125,7 @@ export async function classifyDocument(
         "X-Title": "Better Paperless AI",
       },
       body: JSON.stringify({
-        model: process.env.OPENROUTER_MODEL || "google/gemini-2.5-flash",
+        model: runtimeSettings.openRouterModel,
         temperature: 0.1,
         messages: [
           {
@@ -219,7 +223,8 @@ export async function deleteDocument(documentId: number) {
 }
 
 export async function generateDocumentOcr(documentId: number) {
-  const apiKey = process.env.OPENROUTER_API_KEY
+  const runtimeSettings = getRuntimeSettings()
+  const apiKey = runtimeSettings.openRouterApiKey
   if (!apiKey)
     throw new Error(
       "Add OPENROUTER_API_KEY to .env.local before generating OCR"
@@ -266,7 +271,7 @@ export async function generateDocumentOcr(documentId: number) {
         "X-Title": "Better Paperless AI",
       },
       body: JSON.stringify({
-        model: process.env.OPENROUTER_MODEL || "google/gemini-2.5-flash",
+        model: runtimeSettings.openRouterModel,
         temperature: 0,
         messages: [
           {

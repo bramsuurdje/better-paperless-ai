@@ -10,33 +10,43 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ApiWebhooksPaperlessRouteImport } from './routes/api.webhooks.paperless'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiWebhooksPaperlessRoute = ApiWebhooksPaperlessRouteImport.update({
+  id: '/api/webhooks/paperless',
+  path: '/api/webhooks/paperless',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/api/webhooks/paperless': typeof ApiWebhooksPaperlessRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/api/webhooks/paperless': typeof ApiWebhooksPaperlessRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/api/webhooks/paperless': typeof ApiWebhooksPaperlessRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths: '/' | '/api/webhooks/paperless'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to: '/' | '/api/webhooks/paperless'
+  id: '__root__' | '/' | '/api/webhooks/paperless'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  ApiWebhooksPaperlessRoute: typeof ApiWebhooksPaperlessRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -48,11 +58,19 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/webhooks/paperless': {
+      id: '/api/webhooks/paperless'
+      path: '/api/webhooks/paperless'
+      fullPath: '/api/webhooks/paperless'
+      preLoaderRoute: typeof ApiWebhooksPaperlessRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  ApiWebhooksPaperlessRoute: ApiWebhooksPaperlessRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
