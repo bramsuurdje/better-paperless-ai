@@ -62,6 +62,7 @@ export async function loadDashboard(): Promise<DashboardData> {
       ),
     ])
     return {
+      paperlessUrl: paperlessUrl(),
       documents: documents.results.map((document) => ({
         ...document,
         content: document.content.slice(0, 600),
@@ -75,6 +76,7 @@ export async function loadDashboard(): Promise<DashboardData> {
     }
   } catch (error) {
     return {
+      paperlessUrl: paperlessUrl(),
       documents: [],
       correspondents: [],
       documentTypes: [],

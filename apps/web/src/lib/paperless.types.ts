@@ -15,6 +15,7 @@ export type NamedResource = {
 }
 
 export type DashboardData = {
+  paperlessUrl: string
   documents: PaperlessDocument[]
   correspondents: NamedResource[]
   documentTypes: NamedResource[]

@@ -4,6 +4,7 @@ import { diffLines } from "diff"
 import { HugeiconsIcon } from "@hugeicons/react"
 import {
   AiMagicIcon,
+  ArrowUpRight01Icon,
   ArrowRight01Icon,
   CheckmarkCircle02Icon,
   Delete02Icon,
@@ -661,14 +662,24 @@ function Dashboard() {
                     return (
                       <TableRow key={document.id}>
                         <TableCell>
-                          <div className="flex max-w-xl flex-col gap-1">
-                            <span className="truncate font-medium">
-                              {document.title}
+                          <a
+                            href={`${data.paperlessUrl}/documents/${document.id}/details`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="group flex max-w-xl flex-col gap-1 rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                          >
+                            <span className="flex min-w-0 items-center gap-1.5 font-medium group-hover:underline group-hover:underline-offset-4">
+                              <span className="truncate">{document.title}</span>
+                              <HugeiconsIcon
+                                icon={ArrowUpRight01Icon}
+                                strokeWidth={2}
+                                className="size-3.5 shrink-0 text-muted-foreground"
+                              />
                             </span>
                             <span className="line-clamp-1 text-xs text-muted-foreground">
                               {document.content || "No OCR text available"}
                             </span>
-                          </div>
+                          </a>
                         </TableCell>
                         <TableCell className="hidden text-muted-foreground md:table-cell">
                           {formatDate(document.created)}
@@ -722,7 +733,10 @@ function Dashboard() {
                                   Actions for {document.title}
                                 </span>
                               </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end">
+                              <DropdownMenuContent
+                                align="end"
+                                className="min-w-52"
+                              >
                                 <DropdownMenuGroup>
                                   <DropdownMenuItem
                                     onClick={() => classify(document)}
