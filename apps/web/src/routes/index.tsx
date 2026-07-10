@@ -126,7 +126,7 @@ function Dashboard() {
   const router = useRouter()
   const [query, setQuery] = useState("")
   const [classificationFilter, setClassificationFilter] =
-    useState("unclassified")
+    useState("all")
   const [correspondentFilter, setCorrespondentFilter] = useState("all")
   const [documentTypeFilter, setDocumentTypeFilter] = useState("all")
   const [selected, setSelected] = useState<PaperlessDocument | null>(null)
