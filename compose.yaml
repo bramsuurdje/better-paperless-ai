@@ -1,0 +1,12 @@
+services:
+  web:
+    build:
+      context: .
+    image: better-paperless-ai:local
+    init: true
+    restart: unless-stopped
+    env_file:
+      - path: .env.local
+        required: false
+    ports:
+      - "3000:3000"

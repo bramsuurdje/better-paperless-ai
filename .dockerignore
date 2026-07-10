@@ -1,0 +1,14 @@
+.git
+.github
+.turbo
+**/.turbo
+node_modules
+**/node_modules
+**/dist
+**/.output
+.env
+.env.*
+!.env.example
+*.log
+.DS_Store
+README.md
