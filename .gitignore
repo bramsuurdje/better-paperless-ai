@@ -1,18 +1,7 @@
 node_modules
-.DS_Store
-dist
-dist-ssr
-*.local
-.env*
-.tanstack
-.wrangler
-.output
-.vinxi
-__unconfig*
-todos.json
-
-# turbo
 .turbo
-
-# typescript
-*.tsbuildinfo
+.output
+dist
+.env
+.env.local
+.env.*.local
