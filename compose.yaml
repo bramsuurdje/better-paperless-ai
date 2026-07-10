@@ -1,8 +1,7 @@
 services:
   web:
-    build:
-      context: .
-    image: better-paperless-ai:local
+    image: ghcr.io/bramsuurdje/better-paperless-ai:latest
+    pull_policy: always
     init: true
     restart: unless-stopped
     env_file:

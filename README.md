@@ -57,10 +57,11 @@ bun run --cwd apps/web start
 
 ## Docker Compose
 
-The included Compose file builds the image locally, reads `.env.local`, and exposes the app on port 3000:
+The included Compose file pulls the latest image from GitHub Container Registry, reads `.env.local`, and exposes the app on port 3000:
 
 ```bash
-docker compose up --build -d
+docker compose pull
+docker compose up -d
 ```
 
 Open `http://localhost:3000`. View logs or stop the service with:
