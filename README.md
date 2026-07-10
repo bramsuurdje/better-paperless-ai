@@ -1,3 +1,5 @@
+<img width="1920" height="1080" alt="602_1x_shots_so" src="https://github.com/user-attachments/assets/bb4622ae-3374-4a7d-bff0-59cefa9b3fac" />
+
 # Better Paperless AI
 
 Better Paperless AI is a small web app for reviewing documents stored in [Paperless-ngx](https://docs.paperless-ngx.com/). It lists recent documents, filters and searches them, suggests titles, correspondents, and document types through OpenRouter, and lets you review changes before applying them. It can also generate replacement OCR text for PDF and image files.
