@@ -16,6 +16,7 @@ import { Spinner } from "@workspace/ui/components/spinner"
 import { cn } from "@workspace/ui/lib/utils"
 
 import type { OcrComparison, PaperlessDocument } from "@/lib/paperless.types"
+import { getOcrDiffPartKey } from "@/lib/ocr-diff"
 
 export function OcrDialog({
   target: ocrTarget,
@@ -79,9 +80,9 @@ export function OcrDialog({
             </div>
             <ScrollArea className="h-[55svh] border bg-muted/30">
               <div className="p-4 font-mono text-xs leading-relaxed">
-                {ocrDiff.map((part) => (
+                {ocrDiff.map((part, index) => (
                   <pre
-                    key={`${part.added ? "added" : part.removed ? "removed" : "unchanged"}:${part.value}`}
+                    key={getOcrDiffPartKey(part, index)}
                     className={cn(
                       "px-2 py-1 break-words whitespace-pre-wrap",
                       part.added && "bg-primary/10 text-foreground",
