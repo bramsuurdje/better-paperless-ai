@@ -1,98 +1,83 @@
 # Better Paperless AI
 
-Better Paperless AI is a TanStack Start web application for reviewing and improving documents stored in Paperless-ngx.
+Better Paperless AI is a small web app for reviewing documents stored in [Paperless-ngx](https://docs.paperless-ngx.com/). It lists recent documents, filters and searches them, suggests titles, correspondents, and document types through OpenRouter, and lets you review changes before applying them. It can also generate replacement OCR text for PDF and image files.
+
+The app can change metadata, replace OCR text, create correspondents and document types, and delete documents. Run it only where trusted users can reach it.
+
+## Requirements
+
+- A running Paperless-ngx instance that this app can reach
+- A Paperless API token with permission to read and update documents
+- An OpenRouter API key and a model that supports the features you plan to use
+- Bun 1.3.13 or later for local development, or Docker with Compose for container hosting
 
 ## Configuration
 
-Copy the environment template and fill in your own credentials. `.env.local` is ignored by Git and must never be committed.
+Copy the example file:
 
 ```bash
 cp .env.example .env.local
 ```
 
-The application uses these variables:
+Set all four variables in `.env.local`:
 
-- `PAPERLESS_URL`: URL of the Paperless-ngx instance
-- `PAPERLESS_API_KEY`: Paperless-ngx API token
-- `OPENROUTER_API_KEY`: OpenRouter API key
-- `OPENROUTER_MODEL`: OpenRouter model identifier
+```dotenv
+PAPERLESS_URL=https://paperless.example.com
+PAPERLESS_API_KEY=your-paperless-api-token
+OPENROUTER_API_KEY=your-openrouter-api-key
+OPENROUTER_MODEL=google/gemini-2.5-flash-lite
+```
 
-## Development
+`PAPERLESS_URL` is the base URL of your Paperless-ngx server. `OPENROUTER_MODEL` must accept text for classification. AI OCR also requires a model that accepts PDF or image input.
 
-Install dependencies and start the development server:
+## Local development
+
+Install dependencies and start the development server from the repository root:
 
 ```bash
 bun install --frozen-lockfile
 bun run dev
 ```
 
-The web app is available at `http://localhost:3000`.
+Open `http://localhost:3000`.
 
-## Production build
-
-Build and run the TanStack Start production server locally:
+To test a production build without Docker:
 
 ```bash
 bun run build
 bun run --cwd apps/web start
 ```
 
-The production command uses `srvx` to serve the generated `apps/web/dist/client` assets and forward dynamic requests to the generated `apps/web/dist/server/server.js` fetch handler.
-
-## Docker
-
-Build the image from the repository root:
-
-```bash
-docker build -t better-paperless-ai:local .
-```
-
-Run it with the local environment file:
-
-```bash
-docker run --rm --init -p 3000:3000 --env-file .env.local better-paperless-ai:local
-```
-
-The container listens on port `3000` and runs as the non-root `bun` user.
-
 ## Docker Compose
 
-Compose reads the application secrets from `.env.local`, which remains outside version control:
+The included Compose file builds the image locally, reads `.env.local`, and exposes the app on port 3000:
 
 ```bash
-cp .env.example .env.local
-docker compose up --build
+docker compose up --build -d
 ```
 
-Stop the application with `docker compose down`.
-
-## GitHub Container Registry
-
-Pushes to `main` and version tags matching `v*` publish multi-platform images for `linux/amd64` and `linux/arm64` to GitHub Container Registry. Pull requests build the image but do not publish it.
-
-Replace `OWNER` and `REPOSITORY` with the GitHub repository path:
+Open `http://localhost:3000`. View logs or stop the service with:
 
 ```bash
-docker pull ghcr.io/OWNER/REPOSITORY:latest
-docker run --rm --init -p 3000:3000 --env-file .env.local ghcr.io/OWNER/REPOSITORY:latest
+docker compose logs -f
+docker compose down
 ```
 
-Published images also receive branch, semantic-version, and immutable commit SHA tags. Private packages require a GitHub token with `read:packages` permission for `docker login ghcr.io` before pulling.
-
-## Adding components
-
-To add components to your app, run the following command at the root of your `web` app:
+You can also build and run the included Dockerfile directly:
 
 ```bash
-bunx shadcn@latest add button -c apps/web
+docker build -t better-paperless-ai .
+docker run --rm --init -p 3000:3000 --env-file .env.local better-paperless-ai
 ```
 
-This will place the ui components in the `packages/ui/src/components` directory.
+The container listens on port 3000, includes a health check, and runs as the non-root `bun` user.
 
-## Using components
+## Self-hosting and security
 
-To use the components in your app, import them from the `ui` package.
+Better Paperless AI does not provide user accounts or access control. Do not expose port 3000 directly to the public internet. Put it on a trusted private network or behind a reverse proxy that handles HTTPS and authentication.
 
-```tsx
-import { Button } from "@workspace/ui/components/button"
-```
+Keep `.env.local` out of version control and restrict access to it. The Paperless token gives the app write and delete access, so use a dedicated token with only the permissions the app needs if your Paperless setup supports that.
+
+Classification sends document OCR text to OpenRouter. AI OCR sends the source PDF or image and supports files up to 25 MB. Check your OpenRouter model provider's data handling policy before processing sensitive documents.
+
+The app server must be able to reach both your Paperless-ngx URL and `https://openrouter.ai`. If Paperless uses a private hostname or address, make sure that address is reachable from the container or host running this app.
