@@ -407,19 +407,6 @@ function Dashboard() {
       </header>
 
       <div className="mx-auto flex max-w-7xl flex-col gap-6 px-5 py-8 lg:px-8">
-        <section className="flex flex-col gap-2">
-          <p className="text-sm font-medium text-primary">
-            Smart document management
-          </p>
-          <h1 className="max-w-2xl text-3xl font-semibold tracking-tight sm:text-4xl">
-            Turn an untidy inbox into useful records.
-          </h1>
-          <p className="max-w-2xl text-muted-foreground">
-            Review Paperless OCR text, generate clear titles, and assign
-            correspondents and document types with {data.model}.
-          </p>
-        </section>
-
         {data.connectionError ? (
           <Alert variant="destructive">
             <HugeiconsIcon icon={RefreshIcon} strokeWidth={2} />
