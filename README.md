@@ -84,18 +84,82 @@ The container listens on port 3000, includes a health check, and runs as the non
 
 Paperless can notify the app whenever it consumes a new document. The app downloads the source file, generates replacement OCR, writes that text to Paperless, and then assigns a title, correspondent, and document type.
 
-Open Settings in Better Paperless AI and configure the Paperless connection, OpenRouter connection, and webhook secret. Turn on webhook automation when those values are ready.
+### Prepare Better Paperless AI
 
-Create a workflow in Paperless with these values:
+Open Settings in Better Paperless AI and check the Paperless URL, Paperless API key, OpenRouter API key, and model. Generate a webhook secret, copy it somewhere safe, then turn on webhook automation and save the settings.
 
-- Trigger: Document Added
-- Action: Webhook
-- Method: POST
-- URL: the public URL of this app followed by `/api/webhooks/paperless`
-- Header: `Authorization: Bearer your-webhook-secret`
-- Body: `{"document_id":"{doc_id}"}`
+The model must accept PDF or image input if you want automatic AI OCR. A text-only model can classify existing OCR text, but it cannot read the original document.
 
-If both apps share a Docker network, the webhook URL can use the Compose service name, for example `http://web:3000/api/webhooks/paperless`. Otherwise, use an address that the Paperless container can reach.
+### Create the Paperless workflow
+
+Open Workflows in Paperless and create a workflow. Give it a clear name such as `Better Paperless AI`.
+
+Paperless documents its webhook fields and placeholders in the [workflow guide](https://docs.paperless-ngx.com/usage/#webhook).
+
+Add a trigger with the type `Document Added`. You do not need any filters unless you only want to process certain documents.
+
+Add a Webhook action and enter these values:
+
+| Paperless field | Value |
+| --- | --- |
+| Webhook URL | `http://your-app-address:3000/api/webhooks/paperless` |
+| Use parameters for webhook body | On |
+| Send webhook payload as JSON | On |
+| Include document | Off |
+
+Under Webhook params, add one row:
+
+| Name | Value |
+| --- | --- |
+| `document_id` | `{{doc_id}}` |
+
+Under Webhook headers, add one row:
+
+| Name | Value |
+| --- | --- |
+| `X-Webhook-Secret` | The webhook secret from Better Paperless AI |
+
+The header name must be exactly `X-Webhook-Secret`. Do not add the word `header` to it. Leave `Include document` off because Better Paperless AI downloads the source file from the Paperless API.
+
+Save the workflow, then upload a new document. A `Document Added` workflow only runs for documents added after the workflow was enabled. It does not process documents that were already in Paperless.
+
+### Pick the right webhook URL
+
+The webhook URL is resolved from inside the Paperless container, not from your browser. `localhost` points to the Paperless container itself and will not normally reach Better Paperless AI.
+
+If both apps share a Docker network, use the Better Paperless AI service name. For example:
+
+```text
+http://web:3000/api/webhooks/paperless
+```
+
+If they run on different hosts or Docker networks, use an IP address or hostname that the Paperless container can reach:
+
+```text
+http://10.0.1.188:3000/api/webhooks/paperless
+```
+
+Some Paperless installations restrict webhook ports or requests to private IP addresses. Check `PAPERLESS_WEBHOOKS_ALLOWED_PORTS` and `PAPERLESS_WEBHOOKS_ALLOW_INTERNAL_REQUESTS` in the [Paperless webhook configuration](https://docs.paperless-ngx.com/configuration/#workflow-webhooks) if the request is blocked.
+
+### Test the workflow
+
+Upload a disposable test document and follow the Better Paperless AI logs:
+
+```bash
+docker compose logs -f
+```
+
+Paperless sends a request shaped like this:
+
+```http
+POST /api/webhooks/paperless
+Content-Type: application/json
+X-Webhook-Secret: your-webhook-secret
+
+{"document_id":"123"}
+```
+
+The endpoint returns `202 Accepted` when it queues the document. A `401 Unauthorized` response means the webhook secret does not match. A `409 Conflict` response means webhook automation is disabled in Better Paperless AI. If Paperless leaves `{{doc_id}}` unchanged, update Paperless to a version that supports the `doc_id` workflow placeholder.
 
 The app stores automation jobs on disk and processes them one at a time. Repeated webhook calls for the same completed document do not run the job again. A failed job can be queued again by sending the webhook another time.
 
